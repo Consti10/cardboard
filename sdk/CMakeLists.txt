@@ -64,3 +64,7 @@ target_link_libraries(cardboard_api
     ${GLESv2-lib}
     ${log-lib}
     cardboard_device_proto)
+
+set_target_properties(cardboard_api
+        PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "../../../../my_cardboard_api_output_lib/${ANDROID_ABI}")

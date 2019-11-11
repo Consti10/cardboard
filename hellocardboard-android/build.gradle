@@ -48,13 +48,14 @@ dependencies {
 
 // The dependencies for NDK builds live inside the .aar files so they need to
 // be extracted before NDK targets can link against.
-task extractNdk(type: Copy)  {
+//We do not need the extractNDK anymore !
+/*task extractNdk(type: Copy)  {
     if (file("${project.rootDir}/sdk/build/outputs/aar/sdk-release.aar").exists()) {
         copy {
             from zipTree("${project.rootDir}/sdk/build/outputs/aar/sdk-release.aar")
-            into "libraries/"
-            include "jni/**/libcardboard_api.so"
-        }
+            into "libraries/"*/
+            //include "jni/**/libcardboard_api.so"
+        /*}
         copy {
             from "${project.rootDir}/sdk/include/cardboard.h"
             into "libraries/"
@@ -65,7 +66,7 @@ task extractNdk(type: Copy)  {
 task deleteNdk(type: Delete) {
     delete "libraries/jni"
     delete "libraries/cardboard.h"
-}
+}*/
 
-build.dependsOn(extractNdk)
-clean.dependsOn(deleteNdk)
+//build.dependsOn(extractNdk)
+//clean.dependsOn(deleteNdk)
