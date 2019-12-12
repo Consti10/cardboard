@@ -24,6 +24,9 @@
 
 #ifdef __ANDROID__
 #include <GLES2/gl2.h>
+#include <array>
+#include "../../hellocardboard-android/src/main/cpp/GLPrograms/DistortionCorrection/MLensDistortion.h"
+
 #endif
 #ifdef __APPLE__
 #include <OpenGLES/ES2/gl.h>
@@ -58,7 +61,7 @@ typedef struct CardboardEyeTextureDescription {
   float right_u;            // u coordinate of the right side of the eye.
   float top_v;              // v coordinate of the top side of the eye.
   float bottom_v;           // v coordinate of the bottom side.
-  float eye_from_head[16];  // The translation from head coordinate frame  to
+  //float eye_from_head[16];  // The translation from head coordinate frame  to
                             // the eye frame.
 } CardboardEyeTextureDescription;
 
@@ -122,6 +125,7 @@ void CardboardLensDistortion_getEyeMatrices(
 void CardboardLensDistortion_getDistortionMesh(
     CardboardLensDistortion* lens_distortion, CardboardEye eye,
     CardboardMesh* mesh);
+
 
 /// Applies lens inverse distortion function to a point normalized [0,1] in pre
 /// distort space (eye texture space).
@@ -237,6 +241,12 @@ void CardboardQrCode_destroy(const uint8_t* encoded_device_params);
 
 /// Scans a QR code and saves the encoded device parameters.
 void CardboardQrCode_scanQrCodeAndSaveDeviceParams();
+
+
+MDeviceParams CreateMLensDistortion(const uint8_t* encoded_device_params, int size, int display_width,
+                           int display_height);
+
+
 
 #ifdef __cplusplus
 }

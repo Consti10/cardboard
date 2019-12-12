@@ -179,7 +179,7 @@ class Texture {
   // Binds the texture, replacing any previously bound texture.
   void Bind() const;
 
- private:
+public:
   GLuint texture_id_;
 };
 

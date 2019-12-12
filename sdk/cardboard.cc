@@ -13,13 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef LALALALALA
+#define LALALALALA
+
 #include "include/cardboard.h"
 
 #include "distortion_renderer.h"
 #include "head_tracker.h"
 #include "lens_distortion.h"
+#include "cardboard_device.pb.h"
 #include "qr_code.h"
 #include "screen_params.h"
+
+#include "../hellocardboard-android/src/main/cpp/GLPrograms/DistortionCorrection/MLensDistortion.h"
 
 // TODO(b/134142617): Revisit struct/class hierarchy.
 struct CardboardLensDistortion : cardboard::LensDistortion {};
@@ -163,4 +169,37 @@ void CardboardQrCode_scanQrCodeAndSaveDeviceParams() {
   cardboard::qrcode::scanQrCodeAndSaveDeviceParams();
 }
 
+//We use MDeviceParams to decouple from the Protobuff library
+MDeviceParams CreateMLensDistortion(const uint8_t *encoded_device_params, int size, int display_width,
+                           int display_height) {
+  cardboard::DeviceParams params;
+  params.ParseFromArray(encoded_device_params,size);
+
+  float screen_width_meters;
+  float screen_height_meters;
+  cardboard::screen_params::getScreenSizeInMeters(display_width, display_height,
+                                       &screen_width_meters,
+                                       &screen_height_meters);
+
+  std::vector<float> distortion_coefficients(
+          params.distortion_coefficients().data(),
+          params.distortion_coefficients().data() +
+          params.distortion_coefficients_size());
+
+  std::array<float, 4> device_fov = {
+          params.left_eye_field_of_view_angles(0),
+          params.left_eye_field_of_view_angles(1),
+          params.left_eye_field_of_view_angles(2),
+          params.left_eye_field_of_view_angles(3),
+  };
+  MDeviceParams mDeviceParams{screen_width_meters,screen_height_meters,params.screen_to_lens_distance(),params.inter_lens_distance(),params.vertical_alignment(),
+                              params.tray_to_lens_distance(),device_fov,distortion_coefficients};
+  return mDeviceParams;
+}
+
+
+
 }  // extern "C"
+
+#endif //LALALALALA
+

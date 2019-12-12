@@ -27,8 +27,21 @@
 
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
+#include <GLProgramTexture.h>
+#include <GLProgramVC.h>
+#include <Helper/CoordinateSystemLines.h>
 #include "cardboard.h"
 #include "util.h"
+//#include "../../../../sdk/lens_distortion.h"
+
+//
+#include <glm/glm.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/ext.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
+
 
 namespace ndk_hello_cardboard {
 
@@ -118,7 +131,7 @@ class HelloCardboardApp {
   /**
    * Draws all world-space objects for the given eye.
    */
-  void DrawWorld();
+  void DrawWorld(int eye);
 
   /**
    * Draws the target object.
@@ -134,6 +147,8 @@ class HelloCardboardApp {
    * Finds a new random position for the target object.
    */
   void HideTarget();
+
+  void DrawMeshVDDC();
 
   /**
    * Checks if user is pointing or looking at the target object by calculating
@@ -161,6 +176,7 @@ class HelloCardboardApp {
 
   float projection_matrices_[2][16];
   float eye_matrices_[2][16];
+  Matrix4x4 cEyeViews[2];
 
   GLuint depthRenderBuffer_;  // depth buffer
   GLuint framebuffer_;        // framebuffer object
@@ -184,6 +200,32 @@ class HelloCardboardApp {
   std::vector<Texture> target_object_not_selected_textures_;
   std::vector<Texture> target_object_selected_textures_;
   int cur_target_object_;
+
+  //GLuint testTexture;
+  Texture testTexture;
+
+  static constexpr int TEXTURE_TESSELATION_FACTOR=30;
+  static constexpr int LINE_MESH_TESSELATION_FACTOR=10;
+  GLProgramVC* glProgramVC;
+  GLProgramVC* glProgramVCDistortion;
+  GLProgramVC* glProgramVC2D;
+  GLuint glBufferVC;
+  GLuint glBufferVCX;
+  GLuint glBufferVC2[2];
+  int nColoredVertices;
+  int nColoredVertices2;
+  static constexpr const float MAX_RAD_SQ=1.0f;
+
+  DistortionManager distortionManager;
+  glm::mat4 mProjectionM;
+  glm::mat4 mViewMLeftEye,mViewMRightEye;
+
+  CoordinateSystemLines coordinateSystemLines;
+    static constexpr float MAX_Z_DISTANCE=10.0f;
+    static constexpr float MIN_Z_DISTANCE=0.001f;
+    static constexpr float CAMERA_POSITION=0.0f;
+
+  // cardboard::LensDistortion* cLensDistortion;
 };
 
 }  // namespace ndk_hello_cardboard

@@ -23,6 +23,9 @@
 #include <array>
 #include <cmath>
 #include <fstream>
+#include <GeometryBuilder/TexturedGeometry.hpp>
+#include <Helper/GLBufferHelper.hpp>
+#include <GeometryBuilder/ColoredGeometry.hpp>
 
 namespace ndk_hello_cardboard {
 
@@ -36,7 +39,7 @@ constexpr float kMaxTargetDistance = 3.5f;
 constexpr float kMinTargetHeight = 0.5f;
 constexpr float kMaxTargetHeight = kMinTargetHeight + 3.0f;
 
-constexpr float kDefaultFloorHeight = -1.7f;
+constexpr float kDefaultFloorHeight = -1.7f;//-1.7f;
 
 constexpr uint64_t kPredictionTimeWithoutVsyncNanos = 50000000;
 
@@ -74,8 +77,10 @@ constexpr const char* kObjFragmentShaders =
 
 }  // anonymous namespace
 
+
 HelloCardboardApp::HelloCardboardApp(JavaVM* vm, jobject obj, jobject asset_mgr_obj)
-    : head_tracker_(nullptr),
+    : distortionManager(DistortionManager::DISTORTION_MODE::RADIAL_2),
+    head_tracker_(nullptr),
       lens_distortion_(nullptr),
       distortion_renderer_(nullptr),
       screen_params_changed_(false),
@@ -97,7 +102,6 @@ HelloCardboardApp::HelloCardboardApp(JavaVM* vm, jobject obj, jobject asset_mgr_
   vm->GetEnv((void**)&env, JNI_VERSION_1_6);
   java_asset_mgr_ = env->NewGlobalRef(asset_mgr_obj);
   asset_mgr_ = AAssetManager_fromJava(env, asset_mgr_obj);
-
   Cardboard_initializeAndroid(vm, obj);
   head_tracker_ = CardboardHeadTracker_create();
 }
@@ -153,7 +157,30 @@ void HelloCardboardApp::OnSurfaceCreated(JNIEnv* env) {
 
   // Target object first appears directly in front of user.
   model_target_ = GetTranslationMatrix({0.0f, 1.5f, kMinTargetDistance});
+  //
+  //glGenTextures(1,&testTexture);
+  testTexture.Initialize(env,java_asset_mgr_,"basicgrid_middlecross.png");
 
+  glProgramVC=new GLProgramVC(nullptr);
+  glProgramVCDistortion=new GLProgramVC(&distortionManager);
+  glProgramVC2D=new GLProgramVC(nullptr,true);
+  float tesselatedRectSize=2.0; //6.2f
+  const float offsetY=1.5f;
+  auto tmp=ColoredGeometry::makeTesselatedColoredRectLines(LINE_MESH_TESSELATION_FACTOR,{-tesselatedRectSize/2.0f,-tesselatedRectSize/2.0f+offsetY,-2},tesselatedRectSize,tesselatedRectSize,Color::BLUE);
+  glGenBuffers(1,&glBufferVC);
+  nColoredVertices=GLBufferHelper::allocateGLBufferStatic(glBufferVC,tmp);
+  tmp=ColoredGeometry::makeTesselatedColoredRectLines(LINE_MESH_TESSELATION_FACTOR,{-tesselatedRectSize/2.0f,-tesselatedRectSize/2.0f+offsetY,-2},tesselatedRectSize,tesselatedRectSize,Color::GREEN);
+    glGenBuffers(1,&glBufferVCX);
+    GLBufferHelper::allocateGLBufferStatic(glBufferVCX,tmp);
+  coordinateSystemLines.initializeGL();
+  /*glProgramTexture=new GLProgramTexture(false, nullptr,false);
+  glGenBuffers(1,&glBufferTextured);
+  const float sizeX=1.0f;
+  const float sizeY=1.0f;
+  const auto tesselatedVideoCanvas=TexturedGeometry::makeTesselatedVideoCanvas2(glm::vec3(-sizeX/2.0f,-sizeY/2.0f,0),
+                                                                                sizeX,sizeY, TEXTURE_TESSELATION_FACTOR, 0.0f,1.0f);
+  GLBufferHelper::allocateGLBufferStatic(glBufferTextured,tesselatedVideoCanvas);
+  nTexturedVertices=tesselatedVideoCanvas.size();*/
   CHECKGLERROR("OnSurfaceCreated");
 }
 
@@ -187,26 +214,59 @@ void HelloCardboardApp::OnDrawFrame() {
 
   // Draw eyes views
   for (int eye = 0; eye < 2; ++eye) {
-    glViewport(eye == kLeft ? 0 : screen_width_ / 2, 0, screen_width_ / 2,
-               screen_height_);
+      glViewport(eye == kLeft ? 0 : screen_width_ / 2, 0, screen_width_ / 2,
+                 screen_height_);
+    //glViewport(0 , 0, screen_width_ ,screen_height_);
 
     Matrix4x4 eye_matrix = GetMatrixFromGlArray(eye_matrices_[eye]);
-    Matrix4x4 eye_view = eye_matrix * head_view_;
+    cEyeViews[eye] = eye_matrix * head_view_;
 
     Matrix4x4 projection_matrix =
         GetMatrixFromGlArray(projection_matrices_[eye]);
-    Matrix4x4 modelview_target = eye_view * model_target_;
+    Matrix4x4 modelview_target = cEyeViews[eye] * model_target_;
     modelview_projection_target_ = projection_matrix * modelview_target;
-    modelview_projection_room_ = projection_matrix * eye_view;
+    modelview_projection_room_ = projection_matrix * cEyeViews[eye];
 
     // Draw room and target
-    DrawWorld();
+    DrawWorld(eye);
   }
 
   // Render
   CardboardDestortionRenderer_renderEyeToDisplay(
       distortion_renderer_, 0, screen_width_, screen_height_,
       &left_eye_texture_description_, &right_eye_texture_description_);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  //render same mesh with disortion correction
+    for (int eye = 0; eye < 2; ++eye) {
+        glViewport(eye == kLeft ? 0 : screen_width_ / 2, 0, screen_width_ / 2,
+                   screen_height_);
+        //glViewport(0,0,screen_width_,screen_height_);
+        /*glProgramVC2D->beforeDraw(glBufferVC2[eye]);
+        std::array<float, 16> cEyeView1=cEyeViews[0].ToGlArray();
+        std::array<float, 16> cEyeView2=cEyeViews[1].ToGlArray();
+        //glm::value_ptr(glm::mat4(1.0)),glm::value_ptr(glm::mat4(1.0))
+        glProgramVC2D->draw(eye==0 ? cEyeView1.data() : cEyeView2.data(),glm::value_ptr(mProjectionM),0,nColoredVertices2,GL_LINES);
+        glProgramVC2D->afterDraw();*/
+        //coordinateSystemLines.drawGL(glProgramVC,0,0,0,0);
+
+        distortionManager.leftEye=eye==kLeft;
+
+      glProgramVCDistortion->beforeDraw(glBufferVCX);
+      glLineWidth(2.0f);
+      //auto* data=eye==0 ? glm::value_ptr(mViewMLeftEye) : glm::value_ptr(mViewMRightEye);
+      auto* data=cEyeViews[eye].ToGlArray().data();
+      //auto* projM=glm::value_ptr(mProjectionM);
+      auto* projM=projection_matrices_[eye];
+      glProgramVCDistortion->draw(data,projM,0,nColoredVertices,GL_LINES);
+      glProgramVCDistortion->afterDraw();
+
+        /*glProgramVCDistortion->beforeDraw(glBufferVC);
+        glProgramVCDistortion->draw(cEyeView1.data(),projection_matrices_[0],0,nColoredVertices,GL_LINES);
+        glProgramVCDistortion->afterDraw();*/
+    }
 
   CHECKGLERROR("onDrawFrame");
 }
@@ -260,7 +320,94 @@ bool HelloCardboardApp::UpdateDeviceParams() {
   lens_distortion_ = CardboardLensDistortion_create(
       buffer, size, screen_width_, screen_height_);
 
+
+    //const auto polynomialRadialDistortion=static_cast<cardboard::PolynomialRadialDistortion*>(CardboardLensDistortion_getPolynomialRadialDistortion(lens_distortion_));
+    //const auto mInverse=polynomialRadialDistortion->getApproximateInverseDistortion(MAX_RAD_SQ,6);
+
+//cLensDistortion= static_cast<cardboard::LensDistortion*>(lens_distortion_);
+  //cardboard::DeviceParams deviceParams;
+  MDeviceParams mDP=CreateMLensDistortion(buffer,size,screen_width_,screen_height_);
+  auto polynomialRadialDistortion=MPolynomialRadialDistortion(mDP.radial_distortion_params);
+  const auto mInverse=polynomialRadialDistortion.getApproximateInverseDistortion(MAX_RAD_SQ,6);
+
+  const auto GetYEyeOffsetMeters= MLensDistortion::GetYEyeOffsetMeters(mDP.vertical_alignment,
+                                                                       mDP.tray_to_lens_distance,
+                                                                       mDP.screen_height_meters);
+  const auto fovLeft= MLensDistortion::CalculateFov(mDP.device_fov_left, GetYEyeOffsetMeters,
+                                                mDP.screen_to_lens_distance,
+                                                mDP.inter_lens_distance,
+                                                polynomialRadialDistortion,
+                                                mDP.screen_width_meters, mDP.screen_height_meters);
+  const auto fovRight=MLensDistortion::reverseFOV(fovLeft);
+
+  std::array<MLensDistortion::ViewportParams,2> screen_params;
+  std::array<MLensDistortion::ViewportParams,2> texture_params;
+
+    MLensDistortion::CalculateViewportParameters_NDC(kLeft, GetYEyeOffsetMeters,
+                                                 mDP.screen_to_lens_distance,
+                                                 mDP.inter_lens_distance, fovLeft,
+                                                 mDP.screen_width_meters, mDP.screen_height_meters,
+                                                 &screen_params[0], &texture_params[0]);
+    MLensDistortion::CalculateViewportParameters_NDC(kRight, GetYEyeOffsetMeters,
+                                                 mDP.screen_to_lens_distance,
+                                                 mDP.inter_lens_distance, fovRight,
+                                                 mDP.screen_width_meters, mDP.screen_height_meters,
+                                                 &screen_params[1], &texture_params[1]);
+
+    distortionManager.updateDistortion(mInverse,MAX_RAD_SQ,screen_params,texture_params);
+
+  float tesselatedRectSize=1.0f;
+  const auto tmp=ColoredGeometry::makeTesselatedColoredRectLines(LINE_MESH_TESSELATION_FACTOR,{0,0,0},1.0f,1.0f,Color::GREEN);
+
+  std::vector<GLProgramVC::Vertex> tmp2;
+  std::vector<GLProgramVC::Vertex> tmp3;
+  for(const GLProgramVC::Vertex v : tmp){
+    CardboardUv input={v.x,v.y};
+    //const auto distortedP=CardboardLensDistortion_undistortedUvForDistortedUv(lens_distortion_,&input,kLeft);
+    const auto distortedP=MLensDistortion::UndistortedUvForDistortedUv(polynomialRadialDistortion,screen_params[0],texture_params[0],{v.x,v.y});
+    /*const auto distortedP= MLensDistortion::UndistortedNDCForDistortedNDC(mInverse,
+                                                                          screen_params[0],
+                                                                          texture_params[0],
+                                                                          {v.x, v.y});*/
+    GLProgramVC::Vertex newVertex;
+    //newVertex.x=v.x;
+    //newVertex.y=v.y;
+    newVertex.x=distortedP[0]*4-1;
+    newVertex.y=distortedP[1]*2-1;
+    //newVertex.x=distortedP[0];
+    //newVertex.y=distortedP[1];
+    newVertex.z=v.z;
+    newVertex.colorRGBA=v.colorRGBA;
+    tmp2.push_back(newVertex);
+    //const auto distortedP2=CardboardLensDistortion_undistortedUvForDistortedUv(lens_distortion_,&input,kRight);
+    const auto distortedP2=MLensDistortion::UndistortedUvForDistortedUv(polynomialRadialDistortion,screen_params[1],texture_params[1],{v.x,v.y});
+    /*const auto distortedP2= MLensDistortion::UndistortedNDCForDistortedNDC(
+            mInverse, screen_params[1], texture_params[1], {v.x, v.y});*/
+    newVertex.x=distortedP2[0]*4-3;
+    newVertex.y=distortedP2[1]*2-1;
+      //newVertex.x=distortedP2[0];
+      //newVertex.y=distortedP2[1];
+    tmp3.push_back(newVertex);
+  }
+  glGenBuffers(2,glBufferVC2);
+  nColoredVertices2=GLBufferHelper::allocateGLBufferStatic(glBufferVC2[0],tmp2);
+  nColoredVertices2=GLBufferHelper::allocateGLBufferStatic(glBufferVC2[1],tmp3);
+
+  //LOGD("XXX%s",mInverse.toString().c_str());
+  distortionManager.updateDistortion(mInverse,MAX_RAD_SQ);
   CardboardQrCode_destroy(buffer);
+
+  //update the vddc matrices
+  const float mViewPortW=screen_width_/2.0f;
+  const float mViewPortH=screen_height_;
+  mProjectionM=glm::perspective(glm::radians(80.0f),((float) mViewPortW)/((float)mViewPortH), MIN_Z_DISTANCE, MAX_Z_DISTANCE);
+
+  const float inter_lens_distance=mDP.inter_lens_distance;
+  glm::vec3 cameraPos   = glm::vec3(0,0,CAMERA_POSITION);
+  glm::vec3 cameraFront = glm::vec3(0.0F,0.0F,-1.0F);
+  glm::mat4 eyeView=glm::lookAt(cameraPos,cameraPos+cameraFront,glm::vec3(0,1,0));
+  mViewMLeftEye=glm::translate(eyeView,glm::vec3(inter_lens_distance/2.0f,0,0));
+  mViewMRightEye=glm::translate(eyeView,glm::vec3(-inter_lens_distance/2.0f,0,0));
 
   GlSetup();
 
@@ -310,16 +457,20 @@ void HelloCardboardApp::GlSetup() {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screen_width_, screen_height_, 0,
                GL_RGB, GL_UNSIGNED_BYTE, 0);
 
+
   left_eye_texture_description_.texture = texture_;
+  //left_eye_texture_description_.texture=testTexture.texture_id_;
   left_eye_texture_description_.layer = 0;
   left_eye_texture_description_.left_u = 0;
-  left_eye_texture_description_.right_u = 0.5;
+  left_eye_texture_description_.right_u = 0.5f;
+  //left_eye_texture_description_.right_u = 1.0f;
   left_eye_texture_description_.top_v = 1;
   left_eye_texture_description_.bottom_v = 0;
 
   right_eye_texture_description_.texture = texture_;
+  //right_eye_texture_description_.texture = testTexture.texture_id_;
   right_eye_texture_description_.layer = 0;
-  right_eye_texture_description_.left_u = 0.5;
+  right_eye_texture_description_.left_u = 0.5f;
   right_eye_texture_description_.right_u = 1;
   right_eye_texture_description_.top_v = 1;
   right_eye_texture_description_.bottom_v = 0;
@@ -365,11 +516,19 @@ Matrix4x4 HelloCardboardApp::GetPose() {
                                &out_position[0], &out_orientation[0]);
   return GetTranslationMatrix(out_position) *
          Quatf::FromXYZW(&out_orientation[0]).ToMatrix();
+         //use o default rotation of 0
+  return Quatf().ToMatrix();
 }
 
-void HelloCardboardApp::DrawWorld() {
+void HelloCardboardApp::DrawWorld(const int eye) {
   DrawRoom();
   DrawTarget();
+  glLineWidth(4.0f);
+    glProgramVC->beforeDraw(glBufferVC);
+    std::array<float, 16> cEyeView1=cEyeViews[eye].ToGlArray();
+    glProgramVC->draw(cEyeView1.data(),projection_matrices_[eye],0,nColoredVertices,GL_LINES);
+    glProgramVC->afterDraw();
+    CHECKGLERROR("DrawDebug");
 }
 
 void HelloCardboardApp::DrawTarget() {
@@ -398,8 +557,6 @@ void HelloCardboardApp::DrawRoom() {
 
   room_tex_.Bind();
   room_.Draw();
-
-  CHECKGLERROR("DrawRoom");
 }
 
 void HelloCardboardApp::HideTarget() {
@@ -425,6 +582,10 @@ bool HelloCardboardApp::IsPointingAtTarget() {
 
   float angle = AngleBetweenVectors(point_vector, target_vector);
   return angle < kAngleLimit;
+}
+
+void HelloCardboardApp::DrawMeshVDDC() {
+
 }
 
 }  // namespace ndk_hello_cardboard

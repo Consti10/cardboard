@@ -56,6 +56,7 @@ add_library(cardboard_api SHARED
     ${screen_params_srcs})
 # Includes
 target_include_directories(cardboard_api
+    PRIVATE ${PROTO_PATH} ${PROTO_PATH}/libprotobuf #for lens_distortion
     PRIVATE ${PROTO_PATH} ${PROTO_PATH}/libprotobuf/android/include)
 # Build
 target_link_libraries(cardboard_api
