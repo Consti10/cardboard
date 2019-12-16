@@ -118,28 +118,14 @@ void MLensDistortion::CalculateViewportParameters_NDC(
     screen_params->height =
             2 / (screen_height_meters / screen_to_lens_distance);
 
-    screen_params->x_eye_offset =
-            eye == 0
-            ? ((screen_width_meters - inter_lens_distance) / 2) /
-              screen_to_lens_distance
-            : ((screen_width_meters + inter_lens_distance) / 2) /
-              screen_to_lens_distance;
-    //? 1.0f : 2.0f;
-    screen_params->y_eye_offset =
-            GetYEyeOffsetMeters /
-            screen_to_lens_distance;
-
     //Use NDC instead
     if(eye==0){
-        screen_params->x_eye_offset=screen_params->x_eye_offset*screen_params->width-1;
-        screen_params->y_eye_offset=screen_params->y_eye_offset*screen_params->height-1;
+        screen_params->x_eye_offset=((screen_width_meters-inter_lens_distance)*2 / screen_width_meters)-1;
     }else{
-        screen_params->x_eye_offset=screen_params->x_eye_offset*screen_params->width-3;
-        screen_params->y_eye_offset=screen_params->y_eye_offset*screen_params->height-1;
+        screen_params->x_eye_offset=((screen_width_meters+inter_lens_distance)*2 / screen_width_meters)-3;
     }
-    //end use NDC
+    screen_params->y_eye_offset=(GetYEyeOffsetMeters*2/screen_height_meters)-1;
 
-    //Use NDC instead
     texture_params->width = static_cast<float>(tan(fov[0] * M_PI / 180) + tan(fov[1] * M_PI / 180))*0.5f;
     texture_params->height = static_cast<float>(tan(fov[2] * M_PI / 180) + tan(fov[3] * M_PI / 180))*0.5f;
 
