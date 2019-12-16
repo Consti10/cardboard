@@ -41,7 +41,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
-
+#include <glm/gtc/type_ptr.hpp>
 
 namespace ndk_hello_cardboard {
 
@@ -214,16 +214,15 @@ class HelloCardboardApp {
   GLuint glBufferVC2[2];
   int nColoredVertices;
   int nColoredVertices2;
-  static constexpr const float MAX_RAD_SQ=1.0f;
 
   DistortionManager distortionManager;
-  glm::mat4 mProjectionM;
-  glm::mat4 mViewMLeftEye,mViewMRightEye;
+  glm::mat4 mProjectionM[2];
+  glm::mat4 mViewM[2];
 
   CoordinateSystemLines coordinateSystemLines;
-    static constexpr float MAX_Z_DISTANCE=10.0f;
-    static constexpr float MIN_Z_DISTANCE=0.001f;
-    static constexpr float CAMERA_POSITION=0.0f;
+  static constexpr float MAX_Z_DISTANCE=10.0f;
+  static constexpr float MIN_Z_DISTANCE=0.001f;
+  static constexpr float CAMERA_POSITION=0.0f;
 
   // cardboard::LensDistortion* cLensDistortion;
 };
