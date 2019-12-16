@@ -113,11 +113,9 @@ std::string DistortionManager::writeGLPositionWithDistortion(const DistortionMan
         s<<"vec4 pos_view=uMVMatrix*"+positionAttribute+";\n";
         s<<"vec4 pos_clip=uPMatrix*pos_view;\n";
         s<<"vec3 ndc=pos_clip.xyz/pos_clip.w;";
-        s<<"vec2 lol=ndc.xy;";
-        s<<"vec2 dist_p=UndistortedNDCForDistortedNDC(uKN,uScreenParams,uTextureParams,lol);";
+        s<<"vec2 dist_p=UndistortedNDCForDistortedNDC(uKN,uScreenParams,uTextureParams,ndc.xy,uMaxRadSq);";
         s<<"gl_Position=vec4(dist_p*pos_clip.w,pos_clip.z,pos_clip.w);";
         //s<<"gl_Position=vec4(dist_p,0,1);";
-
 
         //s<<"gl_Position=vec4(lol,0,1);";
         //s<<"gl_Position=pos_clip;";
@@ -156,8 +154,10 @@ std::string DistortionManager::writeDistortionParams(
     s<<"}\n";
 
     //same as PolynomialRadialDistortion::Distort
-    s<<"vec2 PolynomialDistort(const in float["<<N_COEFICIENTS<<"] coefficients,const in vec2 in_pos){\n";
+    //But with maxRadSq as limit
+    s<<"vec2 PolynomialDistort(const in float["<<N_COEFICIENTS<<"] coefficients,const in vec2 in_pos,const in float maxRadSq){\n";
     s<<"float r2=dot(in_pos.xy,in_pos.xy);\n";
+    s<<"r2=clamp(r2,0.0,maxRadSq);";
     s<<"float dist_factor=PolynomialDistortionFactor(r2,coefficients);";
     s<<"vec2 ret=in_pos.xy*dist_factor;\n";
     s<<"return ret;\n";
@@ -174,11 +174,11 @@ std::string DistortionManager::writeDistortionParams(
     //Same as MLensDistortion::UndistortedNDCForDistortedNDC
     s<<"vec2 UndistortedNDCForDistortedNDC(";
     s<<"const in float["<<N_COEFICIENTS<<"] coefficients,";
-    s<<"const in ViewportParams screen_params,const in ViewportParams texture_params,const in vec2 in_ndc){\n";
+    s<<"const in ViewportParams screen_params,const in ViewportParams texture_params,const in vec2 in_ndc,const in float maxRadSq){\n";
     s<<"vec2 distorted_ndc_tanangle=vec2(";
     s<<"in_ndc.x * texture_params.width - texture_params.x_eye_offset,";
     s<<"in_ndc.y * texture_params.height - texture_params.y_eye_offset);";
-    s<<"vec2 undistorted_ndc_tanangle = PolynomialDistort(coefficients,distorted_ndc_tanangle);";
+    s<<"vec2 undistorted_ndc_tanangle = PolynomialDistort(coefficients,distorted_ndc_tanangle,maxRadSq);";
     s<<"vec2 ret=vec2(undistorted_ndc_tanangle.x*screen_params.width+screen_params.x_eye_offset,";
     s<<"undistorted_ndc_tanangle.y*screen_params.height+screen_params.y_eye_offset);";
     s<<"return ret;";
@@ -205,10 +205,10 @@ std::string DistortionManager::writeGLPosition(const DistortionManager *distorti
     //return "gl_Position = vec4("+positionAttribute+".xy*2.0, 0, 1);";
 }
 
-void DistortionManager::updateDistortion(const MPolynomialRadialDistortion &distortion,
+void DistortionManager::updateDistortion(const MPolynomialRadialDistortion &inverseDistortion,
                                          float maxRadSq) {
-    for(int i=0;i<distortion.getCoeficients().size();i++){
-        radialDistortionCoefficients.kN[i]=distortion.getCoeficients()[i];
+    for(int i=0;i<inverseDistortion.getCoeficients().size();i++){
+        radialDistortionCoefficients.kN[i]=inverseDistortion.getCoeficients()[i];
     }
     radialDistortionCoefficients.maxRadSquared=maxRadSq;
 }
@@ -220,8 +220,7 @@ DistortionManager::updateDistortion(const MPolynomialRadialDistortion &inverseDi
                                     const std::array<MLensDistortion::ViewportParams, 2> texture_params) {
     this->screen_params=screen_params;
     this->texture_params=texture_params;
-
-
+    updateDistortion(inverseDistortion,maxRadSq);
 }
 
 
